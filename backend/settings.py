@@ -14,8 +14,8 @@ sys.path.append(os.path.join(BASE_DIR, 'apps'))
 
 
 SECRET_KEY = os.getenv('SECRET_KEY')
-DEBUG = True
-ALLOWED_HOSTS = []
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',') if os.getenv('ALLOWED_HOSTS') else []
 
 # Application definition
 INSTALLED_APPS = [
@@ -69,10 +69,10 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv('DB_NAME', 'postgres'),
-        "USER": os.getenv('DB_USER', 'postgres.haocfymoonptgxtsahfr'),  # Removed trailing space
-        "PASSWORD": os.getenv('DB_PASSWORD', 'Asdasd2025!!'),
-        "HOST": os.getenv('DB_HOST', 'aws-1-ap-northeast-2.pooler.supabase.com'),
-        "PORT": os.getenv('DB_PORT', '6543'),
+        "USER": os.getenv('DB_USER'),
+        "PASSWORD": os.getenv('DB_PASSWORD'),
+        "HOST": os.getenv('DB_HOST'),
+        "PORT": os.getenv('DB_PORT', '5432'),
     }
 }
 
