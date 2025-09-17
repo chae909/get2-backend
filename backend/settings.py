@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     # Local Apps (apps 디렉토리 내 앱들)
     'apps.users',
     'apps.plans',
+    'ai_service',
 ]
 
 # 커스텀 유저 모델 설정
