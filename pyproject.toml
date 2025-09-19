@@ -87,3 +87,6 @@ dependencies = [
     "xyzservices==2024.9.0",
     "yarl==1.13.1",
 ]
+
+[tool.uv]
+exclude = ["realtime"]  
