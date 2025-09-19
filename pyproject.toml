@@ -43,6 +43,7 @@ dependencies = [
     "jsonschema-specifications==2025.4.1",
     "langchain>=0.3.27",
     "langchain-openai>=0.2.5",
+    "langgraph>=0.6.7",
     "markupsafe==3.0.2",
     "multidict==6.1.0",
     "narwhals==1.47.0",
