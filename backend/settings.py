@@ -12,8 +12,15 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 sys.path.append(os.path.join(BASE_DIR, 'apps'))
 
 
-SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+
+SECRET_KEY = os.getenv('SECRET_KEY')
+if not SECRET_KEY:
+    # Fallback for development - generate a temporary key if none is set
+    import secrets
+    SECRET_KEY = secrets.token_urlsafe(50)
+    if not DEBUG:
+        raise ValueError("SECRET_KEY environment variable must be set in production")
 # Parse allowed hosts from environment variable and add default production hosts
 allowed_hosts_env = os.getenv('ALLOWED_HOSTS', '')
 if allowed_hosts_env:

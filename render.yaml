@@ -3,7 +3,7 @@ services:
     name: get2-backend
     runtime: python
     buildCommand: uv sync && python manage.py collectstatic --noinput && python manage.py migrate
-    startCommand: gunicorn backend.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    startCommand: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.0
@@ -11,3 +11,7 @@ services:
         value: "false"
       - key: ALLOWED_HOSTS
         value: get2-backend.onrender.com,localhost,127.0.0.1
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DJANGO_SETTINGS_MODULE
+        value: backend.settings
