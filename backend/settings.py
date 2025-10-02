@@ -1,6 +1,5 @@
 import os
 import sys  # sys 모듈 임포트
-import dj_database_url
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -68,17 +67,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database (ORM 연결)
+# Database (SQLite for development)
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv('DB_NAME', 'postgres'),
-        "USER": os.getenv('DB_USER'),
-        "PASSWORD": os.getenv('DB_PASSWORD'),
-        "HOST": os.getenv('DB_HOST'),
-        "PORT": os.getenv('DB_PORT', '5432'),
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
+
+# Production database (PostgreSQL) - uncomment when needed
+# DATABASES = {
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": os.getenv('DB_NAME', 'postgres'),
+#         "USER": os.getenv('DB_USER'),
+#         "PASSWORD": os.getenv('DB_PASSWORD'),
+#         "HOST": os.getenv('DB_HOST'),
+#         "PORT": os.getenv('DB_PORT', '5432'),
+#     }
+# }
 
 # Supabase 클라이언트 설정
 SUPABASE_URL = os.getenv('SUPABASE_URL')

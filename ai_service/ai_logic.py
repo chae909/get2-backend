@@ -2,54 +2,111 @@
 
 import os
 from dotenv import load_dotenv
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Dict, Any
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
+from langchain.schema import SystemMessage, HumanMessage
 
 # .env 파일에서 API 키를 불러옵니다.
 load_dotenv()
 
-# 1. AI 셰프(모델) 준비
-# 온도(temperature)는 창의성 조절, 0에 가까울수록 정해진 답변만 합니다.
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+# 1. AI 모델 준비
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 
 # 2. 대화 상태를 저장할 데이터 구조 정의
-# LangGraph는 '상태(State)'를 계속 업데이트하며 작업을 진행합니다.
-# 우리 레스토랑의 '주문서'와 같습니다.
 class State(TypedDict):
-    # `add_messages`는 새로운 메시지가 들어오면 기존 대화에 계속 추가해주는 역할을 합니다.
     messages: Annotated[list, add_messages]
+    context: Dict[str, Any]
 
-# 3. AI 로봇 셰프의 작업 순서(그래프) 설계
+# 3. AI 그래프 빌더 설정
 graph_builder = StateGraph(State)
 
-# 4. '요리하기' 단계(노드) 정의
-# 이 함수가 AI 셰프의 핵심 동작입니다.
-def call_model(state: State):
-    # 현재까지의 대화(주문서)를 AI 셰프에게 보여주고
+# 4. 향상된 AI 응답 함수
+def call_model_with_context(state: State):
+    """컨텍스트를 고려한 AI 모델 호출"""
     messages = state['messages']
-    # 다음 할 말을 생성해달라고 요청합니다.
-    response = llm.invoke(messages)
-    # 생성된 답변을 주문서(상태)에 추가해서 반환합니다.
+    context = state.get('context', {})
+    
+    # 시스템 메시지에 컨텍스트 정보 추가
+    system_prompt = """당신은 도움이 되는 AI 어시스턴트입니다. 
+    사용자의 질문에 정확하고 유용한 답변을 제공해주세요.
+    
+    필요한 경우 다음과 같은 형태로 응답해주세요:
+    - 명확하고 구체적인 답변
+    - 단계별 설명 (필요시)
+    - 추가 도움이 될 만한 정보나 팁
+    """
+    
+    # 컨텍스트가 있는 경우 시스템 프롬프트에 추가
+    if context:
+        context_info = "\n\n추가 컨텍스트 정보:\n"
+        for key, value in context.items():
+            context_info += f"- {key}: {value}\n"
+        system_prompt += context_info
+    
+    # 메시지 리스트 준비
+    if not messages or not isinstance(messages[0], SystemMessage):
+        full_messages = [SystemMessage(content=system_prompt)] + messages
+    else:
+        full_messages = messages
+    
+    response = llm.invoke(full_messages)
     return {"messages": [response]}
 
-# 5. 작업 순서에 '요리하기' 단계 추가 및 시작점/종점 설정
-graph_builder.add_node("llm", call_model) # 'llm'이라는 이름의 작업 단계를 추가
-graph_builder.set_entry_point("llm") # 'llm' 단계에서 작업을 시작
-graph_builder.set_finish_point("llm") # 'llm' 단계에서 작업을 종료 (간단한 예제라서 시작과 끝이 같습니다)
+# 5. 그래프에 노드 추가 및 설정
+graph_builder.add_node("llm", call_model_with_context)
+graph_builder.set_entry_point("llm")
+graph_builder.set_finish_point("llm")
 
-# 6. 완성된 AI 작업 흐름(레시피) 컴파일
-# 이제 이 'chain' 객체를 호출하면 AI가 동작합니다.
+# 6. 그래프 컴파일
 chain = graph_builder.compile()
 
-# 7. 장고에서 호출할 비동기 함수 만들기
-# 이 함수가 장고와 랭그래프를 연결하는 '다리' 역할을 합니다.
-async def get_ai_response(user_question: str):
-    # AI는 작업 시간이 길 수 있으므로 비동기(async)로 처리하는 것이 좋습니다.
-    # 웹 서버가 AI의 답변을 기다리는 동안 멈추는 것을 방지해줍니다.
-    result = await chain.ainvoke({
-        "messages": [("human", user_question)]
-    })
-    # AI가 생성한 마지막 메시지(답변)의 내용만 추출하여 반환합니다.
-    return result['messages'][-1].content
+# 7. 향상된 비동기 함수
+async def get_ai_response(user_question: str, context: Dict[str, Any] = None) -> str:
+    """
+    사용자 질문에 대한 AI 응답 생성
+    
+    Args:
+        user_question: 사용자의 질문
+        context: 추가 컨텍스트 정보 (선택사항)
+    
+    Returns:
+        AI 응답 텍스트
+    """
+    try:
+        if context is None:
+            context = {}
+            
+        result = await chain.ainvoke({
+            "messages": [HumanMessage(content=user_question)],
+            "context": context
+        })
+        
+        return result['messages'][-1].content
+        
+    except Exception as e:
+        return f"죄송합니다. 응답 생성 중 오류가 발생했습니다: {str(e)}"
+
+# 8. 특별한 기능들을 위한 헬퍼 함수들
+async def get_party_planning_response(question: str, party_context: Dict = None) -> str:
+    """파티 플래닝 관련 질문을 위한 특화된 응답"""
+    context = {
+        "domain": "party_planning",
+        "expertise": "이벤트 기획, 파티 조직, 예산 관리"
+    }
+    
+    if party_context:
+        context.update(party_context)
+    
+    enhanced_question = f"""
+    파티 플래닝 관련 질문: {question}
+    
+    다음 관점에서 답변해주세요:
+    1. 실용적이고 실행 가능한 조언
+    2. 예산 고려사항
+    3. 시간 관리 팁
+    4. 주의사항이나 체크리스트
+    """
+    
+    return await get_ai_response(enhanced_question, context)
