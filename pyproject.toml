@@ -89,5 +89,12 @@ dependencies = [
     "websockets>=11,<15", # 버전 범위 수정
     "xyzservices==2024.9.0",
     "yarl==1.13.1",
+    "chromadb>=0.5.0",
+    "langchain-community>=0.3.0",
+    "langchain-chroma>=0.1.0",
+    "sentence-transformers>=3.0.0",
+    "tiktoken>=0.8.0",
+    "mcp>=1.0.0",
+    "pydantic-settings>=2.5.0",
 ]
 

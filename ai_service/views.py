@@ -1,33 +1,116 @@
 # ai_service/views.py
 
 import json
-from django.http import JsonResponse
+import uuid
+import asyncio
+from asgiref.sync import sync_to_async
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework import status
 from django.views.decorators.csrf import csrf_exempt
-from .ai_logic import get_ai_response # 3단계에서 만든 AI 함수를 가져옵니다.
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.http import JsonResponse
+from .serializers import (
+    AIQuerySerializer, 
+    AIResponseSerializer,
+    PartyPlanningRequestSerializer,
+    PartyPlanResponseSerializer
+)
+from .ai_logic import get_ai_response
+from .party_planning_agent import PartyPlanningAgent
 
-# Django 4.1부터 비동기 뷰를 정식 지원합니다.
-# @csrf_exempt는 테스트를 위해 잠시 CSRF 보호를 끄는 데코레이터입니다.
-# 실제 서비스에서는 적절한 CSRF 처리가 필요합니다!
-@csrf_exempt
-async def ask_ai(request):
-    if request.method == 'POST':
+class BaseAIView(View):
+    """AI 서비스 기본 뷰 클래스"""
+    
+    @method_decorator(csrf_exempt)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def ask_ai(request):
+    """일반 AI 질답 엔드포인트"""
+    serializer = AIQuerySerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request data', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        question = serializer.validated_data['question']
+        session_id = serializer.validated_data.get('session_id', str(uuid.uuid4()))
+        context = serializer.validated_data.get('context', {})
+        
+        # AI 응답 생성 (비동기를 동기로 변환)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         try:
-            # 손님(프론트엔드)이 보낸 데이터를 JSON 형태로 받습니다.
-            data = json.loads(request.body)
-            question = data.get('question')
+            ai_answer = loop.run_until_complete(get_ai_response(question, context))
+        finally:
+            loop.close()
+        
+        response_data = {
+            'answer': ai_answer,
+            'session_id': session_id,
+            'confidence': 0.95  # 임시값, 실제로는 모델에서 계산
+        }
+        
+        response_serializer = AIResponseSerializer(data=response_data)
+        if response_serializer.is_valid():
+            return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'서버 내부 오류: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
-            if not question:
-                return JsonResponse({'error': '질문이 없습니다.'}, status=400)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def plan_party(request):
+    """파티 플래닝 전용 AI 엔드포인트"""
+    serializer = PartyPlanningRequestSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(
+            {'error': 'Invalid request data', 'details': serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        # 파티 플래닝 에이전트 인스턴스 생성
+        agent = PartyPlanningAgent()
+        
+        # 파티 플래닝 실행 (비동기를 동기로 변환)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            plan_result = loop.run_until_complete(agent.create_party_plan(serializer.validated_data))
+        finally:
+            loop.close()
+        
+        response_serializer = PartyPlanResponseSerializer(data=plan_result)
+        if response_serializer.is_valid():
+            return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
+        
+        return Response(plan_result, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response(
+            {'error': f'파티 플래닝 오류: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
-            # AI 로봇 셰프에게 요리를 요청하고 답변을 기다립니다. (await)
-            ai_answer = await get_ai_response(question)
-
-            # 완성된 요리(답변)를 손님에게 전달합니다.
-            return JsonResponse({'answer': ai_answer})
-
-        except json.JSONDecodeError:
-            return JsonResponse({'error': '잘못된 형식의 요청입니다.'}, status=400)
-        except Exception as e:
-            return JsonResponse({'error': f'서버 내부 오류: {e}'}, status=500)
-
-    return JsonResponse({'error': 'POST 요청만 지원합니다.'}, status=405)
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def health_check(request):
+    """AI 서비스 상태 확인"""
+    return Response({
+        'status': 'healthy',
+        'service': 'AI Party Planning Service',
+        'version': '1.0.0'
+    }, status=status.HTTP_200_OK)
