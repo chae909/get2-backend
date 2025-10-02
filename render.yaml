@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: get2-backend
+    runtime: python
+    buildCommand: uv sync && python manage.py collectstatic --noinput && python manage.py migrate
+    startCommand: gunicorn backend.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: DEBUG
+        value: "false"
+      - key: ALLOWED_HOSTS
+        value: get2-backend.onrender.com,localhost,127.0.0.1
