@@ -3,7 +3,7 @@ services:
     name: get2-backend
     runtime: python
     buildCommand: uv sync && python manage.py collectstatic --noinput && python manage.py migrate
-    startCommand: gunicorn backend.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120
+    startCommand: gunicorn backend.asgi:application -c gunicorn.conf.py
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.0
