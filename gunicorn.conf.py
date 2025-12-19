@@ -6,16 +6,17 @@ import os
 bind = f"0.0.0.0:{os.environ.get('PORT', '8000')}"
 backlog = 2048
 
-# Worker processes
-workers = int(os.environ.get('WEB_CONCURRENCY', 3))  # Render에서는 3개가 안전
+# Worker processes - 무료 플랜(512MB)에서는 1개만 사용
+# 유료 플랜에서는 WEB_CONCURRENCY 환경변수로 조절 가능
+workers = int(os.environ.get('WEB_CONCURRENCY', 1))
 worker_class = 'uvicorn.workers.UvicornWorker'
-worker_connections = 1000
-timeout = 120  # 2분으로 설정
+worker_connections = 100  # 메모리 절약을 위해 감소
+timeout = 120
 keepalive = 5
 graceful_timeout = 30
 
-# Restart workers after this many requests (helps prevent memory leaks)
-max_requests = 1000
+# 메모리 누수 방지 - 더 자주 재시작
+max_requests = 500
 max_requests_jitter = 50
 
 # Logging
@@ -35,11 +36,10 @@ user = None
 group = None
 tmp_upload_dir = None
 
-# Preload app - False로 설정하여 worker마다 독립적으로 로드
-# (Supabase 클라이언트 초기화 문제 방지)
+# Worker마다 독립적으로 로드
 preload_app = False
 
-# Worker가 제대로 시작되었는지 확인
+# 디버깅 로그
 def on_starting(server):
     print(f"Gunicorn starting with bind={bind}, workers={workers}")
 
@@ -48,6 +48,9 @@ def when_ready(server):
 
 def worker_int(worker):
     print(f"Worker {worker.pid} received INT or QUIT signal")
+
+def post_worker_init(worker):
+    print(f"Worker {worker.pid} initialized")
 
 # SSL (if needed)
 # keyfile = None
