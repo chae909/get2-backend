@@ -15,3 +15,9 @@ services:
         generateValue: true
       - key: DJANGO_SETTINGS_MODULE
         value: backend.settings
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"

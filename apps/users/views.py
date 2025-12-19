@@ -183,16 +183,30 @@ class UserLoginView(APIView):
             
             if auth_response and auth_response.user:
                 logger.info(f"Supabase auth successful for {email}")
-                # Django 유저 객체 가져오기
+                # Django 유저 객체 가져오기 또는 생성
                 try:
                     user = User.objects.get(email=email)
                     logger.debug(f"Django user found: {user.id}")
                 except User.DoesNotExist:
-                    logger.error(f"Django user not found for email: {email}")
-                    return Response(
-                        {"error": "사용자를 찾을 수 없습니다."}, 
-                        status=status.HTTP_404_NOT_FOUND
-                    )
+                    logger.warning(f"Django user not found for email: {email}, creating new user")
+                    try:
+                        # Supabase 인증은 성공했으므로 Django에도 사용자 생성
+                        user = User.objects.create_user(
+                            id=str(auth_response.user.id),
+                            email=email,
+                            nickname=email.split('@')[0],  # 임시 닉네임
+                            password='',
+                            first_name='',
+                            last_name='',
+                            is_active=True,
+                        )
+                        logger.info(f"Django user created: {user.id}")
+                    except Exception as create_error:
+                        logger.error(f"Failed to create Django user: {str(create_error)}")
+                        return Response(
+                            {"error": "사용자 정보 저장에 실패했습니다."}, 
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
                 
                 # JWT 토큰 생성
                 refresh = RefreshToken.for_user(user)
