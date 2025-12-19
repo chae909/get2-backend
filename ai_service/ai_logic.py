@@ -1,12 +1,13 @@
 # ai_service/ai_logic.py
 
 import os
+import asyncio
 from dotenv import load_dotenv
 from typing import TypedDict, Annotated, Dict, Any
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph
 from langgraph.graph.message import add_messages
-from langchain.schema import SystemMessage, HumanMessage
+from langchain.schema import SystemMessage, HumanMessage, AIMessage
 
 # .env 파일에서 API 키를 불러옵니다.
 load_dotenv()
@@ -51,8 +52,22 @@ def call_model_with_context(state: State):
     else:
         full_messages = messages
     
-    response = llm.invoke(full_messages)
-    return {"messages": [response]}
+    try:
+        response = llm.invoke(full_messages)
+        return {"messages": [response]}
+    except Exception as e:
+        # 모델 호출 실패 시 안전한 폴백 응답 제공
+        fallback = (
+            "현재 AI 모델에 접근할 수 없어 간단한 도움말을 제공합니다.\n"
+            "- 질문 요약: " + (messages[-1].content if messages else "N/A") + "\n"
+            "- 컨텍스트: " + ", ".join(f"{k}={v}" for k, v in context.items()) + "\n\n"
+            "실행 가능한 다음 단계를 제안합니다:\n"
+            "1) 목표를 한 줄로 정리하세요\n"
+            "2) 제약(예산/시간/자원)을 나열하세요\n"
+            "3) 우선순위 상위 3가지를 정하세요\n"
+            "4) 바로 할 수 있는 첫 행동을 적고 시작하세요"
+        )
+        return {"messages": [AIMessage(content=fallback)]}
 
 # 5. 그래프에 노드 추가 및 설정
 graph_builder.add_node("llm", call_model_with_context)
@@ -78,10 +93,13 @@ async def get_ai_response(user_question: str, context: Dict[str, Any] = None) ->
         if context is None:
             context = {}
             
-        result = await chain.ainvoke({
-            "messages": [HumanMessage(content=user_question)],
-            "context": context
-        })
+        result = await asyncio.wait_for(
+            chain.ainvoke({
+                "messages": [HumanMessage(content=user_question)],
+                "context": context
+            }),
+            timeout=10
+        )
         
         return result['messages'][-1].content
         

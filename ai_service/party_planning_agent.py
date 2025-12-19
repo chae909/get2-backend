@@ -130,7 +130,21 @@ class PartyPlanningAgent:
         ]
         
         # LLM 호출
-        response = await self.llm.ainvoke(messages)
+        try:
+            response = await self.llm.ainvoke(messages)
+        except Exception:
+            # 폴백: 요구사항을 규칙 기반으로 요약
+            summary = (
+                "요구사항 요약:\n"
+                f"- 목적/분위기: {state['party_type']}에 적합한 즐거운 분위기\n"
+                f"- 예산: {state.get('budget', '미정')}\n"
+                f"- 참석자: {state['guest_count']}명\n"
+                f"- 장소: {state.get('location', '미정')}\n"
+                f"- 특별 요구사항: {state.get('special_requirements', '없음')}\n"
+                f"- 식단 제한: {', '.join(state.get('dietary_restrictions', [])) or '없음'}\n"
+                "핵심 포인트: 예산 내에서 장소/음식/장식을 균형 있게 계획하고, 참석자 특성에 맞춘 활동을 준비하세요."
+            )
+            response = AIMessage(content=summary)
         
         # 상태 업데이트
         state['messages'] = [SystemMessage(content=system_message), HumanMessage(content=user_input), response]
@@ -275,7 +289,20 @@ class PartyPlanningAgent:
             HumanMessage(content=user_message)
         ]
         
-        response = await self.llm.ainvoke(messages)
+        try:
+            response = await self.llm.ainvoke(messages)
+        except Exception:
+            # 폴백: 컨텍스트 기반 기본 계획 생성
+            plan = (
+                f"전체 계획({state['party_type']}):\n"
+                "- 컨셉: 따뜻하고 즐거운 파티 분위기\n"
+                f"- 추천 장소: {state.get('location', '파티룸/집')}\n"
+                "- 음식/음료: 인원수에 맞춘 간단한 뷔페와 음료\n"
+                "- 장식: 테마 컬러 중심의 테이블/벽 장식\n"
+                "- 활동: 사진 부스, 케이크 커팅, 간단한 게임\n"
+                "- 팁: 체크리스트로 준비를 관리하고, 예산은 음식/장소에 우선 배분"
+            )
+            response = AIMessage(content=plan)
         
         state['overall_plan'] = response.content
         state['messages'].extend([SystemMessage(content=system_message), HumanMessage(content=user_message), response])
@@ -319,7 +346,10 @@ class PartyPlanningAgent:
             HumanMessage(content=user_message)
         ]
         
-        response = self.llm.invoke(messages)
+        try:
+            response = self.llm.invoke(messages)
+        except Exception:
+            response = AIMessage(content="[]")
         
         # JSON 파싱 시도
         try:
